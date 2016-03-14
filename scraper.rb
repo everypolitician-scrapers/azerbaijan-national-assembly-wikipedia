@@ -15,16 +15,21 @@ class String
 end
 
 def noko_for(url)
-  Nokogiri::HTML(open(url).read)
+  Nokogiri::HTML(open(URI.escape(URI.unescape(url))).read)
 end
 
-def scrape_list(url)
+def scrape_list(term, url)
   noko = noko_for(url)
-  noko.xpath('.//h2[contains(.," IV ")]//following-sibling::dl/dd').each do |mp|
+  noko.xpath('.//h2[contains(.," Milli Məclisinin ")]//following-sibling::dl/dd').each do |mp|
     links = mp.css('a')
 
     where = links.first.text
     area_id, area = where.match(/(\d+) saylı (.*)/).captures
+
+    unless links[1]
+      warn "No member for #{where} in Term #{term}"
+      next
+    end
 
     if links[2]
       party = links[2].attr('title')
@@ -42,12 +47,14 @@ def scrape_list(url)
       area_id: area_id,
       party: party,
       party_id: party_id,
-      term: '4',
-      source: url,
+      term: term,
+      last_seen: Date.today.to_s,
     }
     # puts data
     ScraperWiki.save_sqlite([:name, :term], data)
   end
 end
 
-scrape_list('https://az.wikipedia.org/wiki/Az%C9%99rbaycan_Respublikas%C4%B1_Milli_M%C9%99clisinin_deputatlar%C4%B1n%C4%B1n_siyah%C4%B1s%C4%B1_(IV_%C3%A7a%C4%9F%C4%B1r%C4%B1%C5%9F)')
+scrape_list('4', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(IV_çağırış)')
+scrape_list('5', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(V_çağırış)')
+
