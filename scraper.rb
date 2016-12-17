@@ -47,7 +47,6 @@ def scrape_list(term, url)
       party: party,
       party_id: party_id,
       term: term,
-      last_seen: Date.today.to_s,
     }
     # puts data
     ScraperWiki.save_sqlite([:name, :term], data)
