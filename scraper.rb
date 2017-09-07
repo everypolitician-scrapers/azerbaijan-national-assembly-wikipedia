@@ -1,5 +1,6 @@
 #!/bin/env ruby
 # encoding: utf-8
+# frozen_string_literal: true
 
 require 'scraperwiki'
 require 'nokogiri'
@@ -9,7 +10,7 @@ require 'pry'
 
 class String
   def tidy
-    self.gsub(/[[:space:]]+/, ' ').strip
+    gsub(/[[:space:]]+/, ' ').strip
   end
 end
 
@@ -35,24 +36,23 @@ def scrape_list(term, url)
       party_id = links[2].text
     else
       raise "unknown party in #{mp.text}" unless mp.text.include? 'bitərəf'
-      party = "Independent"
-      party_id = "IND"
+      party = 'Independent'
+      party_id = 'IND'
     end
 
-    data = { 
-      name: links[1].text,
+    data = {
+      name:     links[1].text,
       wikiname: links[1].attr('title'),
-      area: area.tidy,
-      area_id: area_id,
-      party: party,
+      area:     area.tidy,
+      area_id:  area_id,
+      party:    party,
       party_id: party_id,
-      term: term,
+      term:     term,
     }
     # puts data
-    ScraperWiki.save_sqlite([:name, :term], data)
+    ScraperWiki.save_sqlite(%i[name term], data)
   end
 end
 
 scrape_list('4', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(IV_çağırış)')
 scrape_list('5', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(V_çağırış)')
-
