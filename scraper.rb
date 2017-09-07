@@ -6,44 +6,70 @@ require 'pry'
 require 'scraped'
 require 'scraperwiki'
 
-def noko_for(url)
-  Nokogiri::HTML(open(URI.escape(URI.unescape(url))).read)
+class MembersPage < Scraped::HTML
+  field :members do
+    noko.xpath('.//h2[contains(.," Milli Məclisinin ")]//following-sibling::dl/dd').map do |dd|
+      fragment dd => MemberRow
+    end
+  end
 end
 
-def scrape_list(term, url)
-  noko = noko_for(url)
-  noko.xpath('.//h2[contains(.," Milli Məclisinin ")]//following-sibling::dl/dd').each do |mp|
-    links = mp.css('a')
+class MemberRow < Scraped::HTML
+  field :name do
+    links[1].text rescue nil
+  end
 
-    where = links.first.text
-    area_id, area = where.match(/(\d+) saylı (.*)/).captures
+  field :wikiname do
+    links[1].attr('title')
+  end
 
+  field :area do
+    area_data.last.tidy
+  end
+
+  field :area_id do
+    area_data.first
+  end
+
+  field :party do
+    party_data.first.tidy
+  end
+
+  field :party_id do
+    party_data.last
+  end
+
+  private
+
+  def links
+    noko.css('a')
+  end
+
+  def place
+    links.first.text
+  end
+
+  def area_data
+    place.match(/(\d+) saylı (.*)/).captures
+  end
+
+  def party_data
     unless links[1]
       warn "No member for #{where} in Term #{term}"
-      next
+      return []
     end
-
-    if links[2]
-      party = links[2].attr('title')
-      party_id = links[2].text
-    else
-      raise "unknown party in #{mp.text}" unless mp.text.include? 'bitərəf'
-      party = 'Independent'
-      party_id = 'IND'
-    end
-
-    data = {
-      name:     links[1].text,
-      wikiname: links[1].attr('title'),
-      area:     area.tidy,
-      area_id:  area_id,
-      party:    party,
-      party_id: party_id,
-      term:     term,
-    }
-    puts data.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h if ENV['MORPH_DEBUG']
-    ScraperWiki.save_sqlite(%i[name term], data)
+    return [ links[2].attr('title'), links[2].text ] if links[2]
+    return [ 'Independent', 'IND' ]
   end
+end
+
+def scrape_list(term, rawurl)
+  url = URI.escape(URI.unescape(rawurl))
+  data = MembersPage.new(response: Scraped::Request.new(url: url).response).members.reject { |m| m.name.nil? }.map do |mem|
+    mem.to_h.merge(term: term)
+  end
+  data.each { |mem| puts mem.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h } if ENV['MORPH_DEBUG']
+  ScraperWiki.save_sqlite(%i[name term], data)
 end
 
 scrape_list('4', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(IV_çağırış)')
