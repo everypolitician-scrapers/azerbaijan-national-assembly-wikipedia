@@ -39,6 +39,10 @@ class MemberRow < Scraped::HTML
     area_data.first
   end
 
+  field :area_wikidata do
+    links.first.attr('wikidata')
+  end
+
   field :party do
     party_data[:name]
   end
