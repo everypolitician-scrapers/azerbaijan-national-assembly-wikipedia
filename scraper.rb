@@ -5,8 +5,11 @@
 require 'pry'
 require 'scraped'
 require 'scraperwiki'
+require 'wikidata_ids_decorator'
 
 class MembersPage < Scraped::HTML
+  decorator WikidataIdsDecorator::Links
+
   field :members do
     noko.xpath('.//h2[contains(.," Milli Məclisinin ")]//following-sibling::dl/dd').map do |dd|
       fragment dd => MemberRow
@@ -16,7 +19,12 @@ end
 
 class MemberRow < Scraped::HTML
   field :name do
-    links[1].text rescue nil
+    return unless links[1]
+    links[1].text
+  end
+
+  field :wikidata do
+    links[1].attr('wikidata')
   end
 
   field :wikiname do
@@ -54,10 +62,6 @@ class MemberRow < Scraped::HTML
   end
 
   def party_data
-    unless links[1]
-      warn "No member for #{where} in Term #{term}"
-      return []
-    end
     return [ links[2].attr('title'), links[2].text ] if links[2]
     return [ 'Independent', 'IND' ]
   end
