@@ -40,11 +40,15 @@ class MemberRow < Scraped::HTML
   end
 
   field :party do
-    party_data.first.tidy
+    party_data[:name]
   end
 
   field :party_id do
-    party_data.last
+    party_data[:id]
+  end
+
+  field :party_wikidata do
+    party_data[:wikidata]
   end
 
   private
@@ -62,8 +66,8 @@ class MemberRow < Scraped::HTML
   end
 
   def party_data
-    return [ links[2].attr('title'), links[2].text ] if links[2]
-    return [ 'Independent', 'IND' ]
+    return { id: 'IND', name: 'Independent', wikidata: 'Q327591' } unless links[2]
+    return { id: links[2].text, name: links[2].attr('title').tidy, wikidata: links[2].attr('wikidata') }
   end
 end
 
