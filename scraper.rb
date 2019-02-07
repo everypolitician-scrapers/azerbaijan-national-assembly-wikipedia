@@ -11,24 +11,19 @@ class MembersPage < Scraped::HTML
   decorator WikidataIdsDecorator::Links
 
   field :members do
-    noko.xpath('.//h2[contains(.," Milli Məclisinin ")]//following-sibling::dl/dd').map do |dd|
-      fragment dd => MemberRow
-    end
+    noko.xpath('.//h2[contains(.,"deputatlarının")]//following::table[1]//tr[td[a]]').map do |tr|
+      fragment tr => MemberRow
+    end.reject(&:vacant?)
   end
 end
 
 class MemberRow < Scraped::HTML
   field :name do
-    return unless links[1]
-    links[1].text
+    person_link.text rescue binding.pry
   end
 
   field :wikidata do
-    links[1].attr('wikidata')
-  end
-
-  field :wikiname do
-    links[1].attr('title')
+    person_link.attr('wikidata')
   end
 
   field :area do
@@ -40,7 +35,7 @@ class MemberRow < Scraped::HTML
   end
 
   field :area_wikidata do
-    links.first.attr('wikidata')
+    place_link.attr('wikidata')
   end
 
   field :party do
@@ -55,34 +50,48 @@ class MemberRow < Scraped::HTML
     party_data[:wikidata]
   end
 
-  private
-
-  def links
-    noko.css('a')
+  def vacant?
+    tds[1].text.tidy.empty?
   end
 
-  def place
-    links.first.text
+  private
+
+  def tds
+    noko.css('td')
+  end
+
+  def person_link
+    tds[1].at_css('a')
+  end
+
+  def place_link
+    tds[4].at_css('a')
   end
 
   def area_data
-    place.match(/(\d+) saylı (.*)/).captures
+    place_link.text.match(/(\d+) saylı (.*)/).captures
+  end
+
+  def party_link
+    tds[3].css('a').last
   end
 
   def party_data
-    return { id: 'IND', name: 'Independent', wikidata: 'Q327591' } unless links[2]
-    return { id: links[2].text, name: links[2].attr('title').tidy, wikidata: links[2].attr('wikidata') }
+    return { id: 'IND', name: 'Independent', wikidata: 'Q327591' } unless party_link
+    return { id: party_link.text, name: party_link.attr('title').tidy, wikidata: party_link.attr('wikidata') }
   end
 end
 
-def scrape_list(term, rawurl)
+def member_data(term, rawurl)
   url = URI.escape(URI.unescape(rawurl))
-  data = MembersPage.new(response: Scraped::Request.new(url: url).response).members.reject { |m| m.name.nil? }.map do |mem|
+  MembersPage.new(response: Scraped::Request.new(url: url).response).members.reject { |m| m.name.nil? }.map do |mem|
     mem.to_h.merge(term: term)
   end
-  data.each { |mem| puts mem.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h } if ENV['MORPH_DEBUG']
-  ScraperWiki.save_sqlite(%i[name term], data)
 end
 
-scrape_list('4', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(IV_çağırış)')
-scrape_list('5', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(V_çağırış)')
+data = member_data('4', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(IV_çağırış)') +
+       member_data('5', 'https://az.wikipedia.org/wiki/Azərbaycan_Respublikası_Milli_Məclisinin_deputatlarının_siyahısı_(V_çağırış)')
+data.each { |mem| puts mem.reject { |_, v| v.to_s.empty? }.sort_by { |k, _| k }.to_h } if ENV['MORPH_DEBUG']
+
+ScraperWiki.sqliteexecute('DROP TABLE data') rescue nil
+ScraperWiki.save_sqlite(%i[name term], data)
